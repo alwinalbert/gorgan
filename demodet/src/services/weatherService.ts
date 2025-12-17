@@ -30,6 +30,9 @@ const BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
 // Cache the location request so the browser prompt is shown only once
 let cachedLocationPromise: Promise<GeolocationPosition> | null = null;
+let cachedWeather: { data: WeatherData; timestamp: number } | null = null;
+let inflightWeatherPromise: Promise<WeatherData> | null = null;
+const WEATHER_CACHE_MS = 2 * 60 * 1000; // 2 minutes
 
 export async function getCurrentWeatherData(lat?: number, lon?: number): Promise<WeatherData> {
   try {
@@ -39,19 +42,35 @@ export async function getCurrentWeatherData(lat?: number, lon?: number): Promise
       throw new Error('API key not configured');
     }
 
-    // If no coordinates provided, get user's location (single cached prompt)
-    if (!lat || !lon) {
-      const position = await getUserLocation();
-      lat = position.coords.latitude;
-      lon = position.coords.longitude;
+    const now = Date.now();
+
+    // Use cache when auto-locating
+    const usingAutoLocation = !lat || !lon;
+    if (usingAutoLocation) {
+      if (cachedWeather && now - cachedWeather.timestamp < WEATHER_CACHE_MS) {
+        return cachedWeather.data;
+      }
+      if (inflightWeatherPromise) {
+        return inflightWeatherPromise;
+      }
     }
 
-    console.log('Fetching weather data for:', lat, lon);
+    const fetchPromise = (async (): Promise<WeatherData> => {
+      let effectiveLat = lat;
+      let effectiveLon = lon;
+
+      if (!effectiveLat || !effectiveLon) {
+        const position = await getUserLocation();
+        effectiveLat = position.coords.latitude;
+        effectiveLon = position.coords.longitude;
+      }
+
+      console.log('Fetching weather data for:', effectiveLat, effectiveLon);
     console.log('API Key present:', !!API_KEY);
 
     // Fetch weather data
     const weatherResponse = await fetch(
-      `${BASE_URL}/weather?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`
+      `${BASE_URL}/weather?lat=${effectiveLat}&lon=${effectiveLon}&units=metric&appid=${API_KEY}`
     );
 
     if (!weatherResponse.ok) {
@@ -63,9 +82,9 @@ export async function getCurrentWeatherData(lat?: number, lon?: number): Promise
     const weatherData: OpenWeatherResponse = await weatherResponse.json();
 
     // Fetch air pollution data
-    const airResponse = await fetch(
-      `${BASE_URL}/air_pollution?lat=${lat}&lon=${lon}&appid=${API_KEY}`
-    );
+      const airResponse = await fetch(
+        `${BASE_URL}/air_pollution?lat=${effectiveLat}&lon=${effectiveLon}&appid=${API_KEY}`
+      );
 
     if (!airResponse.ok) {
       const errorData = await airResponse.text();
@@ -84,11 +103,25 @@ export async function getCurrentWeatherData(lat?: number, lon?: number): Promise
       aqi: aqiValue
     })
 
-    return {
+      const result = {
       temperature: Math.round(weatherData.main.temp * 10) / 10,
       location: weatherData.name,
       aqi: aqiValue
     };
+      if (usingAutoLocation) {
+        cachedWeather = { data: result, timestamp: Date.now() };
+      }
+      return result;
+    })();
+
+    if (usingAutoLocation) {
+      inflightWeatherPromise = fetchPromise.finally(() => {
+        inflightWeatherPromise = null;
+      });
+      return inflightWeatherPromise;
+    }
+
+    return fetchPromise;
   } catch (error) {
     console.error('Error fetching weather data:', error);
     // Return fallback data if API fails

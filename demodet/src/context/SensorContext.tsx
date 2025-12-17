@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 
 interface SensorData {
@@ -23,17 +23,17 @@ export function SensorProvider({ children }: { children: ReactNode }) {
     aqi: 145
   });
 
-  const updateTemperature = (temp: number) => {
+  const updateTemperature = useCallback((temp: number) => {
     setSensorData(prev => ({ ...prev, temperature: temp }));
-  };
+  }, []);
 
-  const updateSoundLevel = (level: number) => {
+  const updateSoundLevel = useCallback((level: number) => {
     setSensorData(prev => ({ ...prev, soundLevel: level }));
-  };
+  }, []);
 
-  const updateAQI = (aqi: number) => {
-    setSensorData(prev => ({ ...prev, aqi: aqi }));
-  };
+  const updateAQI = useCallback((aqi: number) => {
+    setSensorData(prev => ({ ...prev, aqi }));
+  }, []);
 
   return (
     <SensorContext.Provider
