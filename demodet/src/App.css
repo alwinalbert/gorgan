@@ -1,42 +1,196 @@
+/* Remove all default styling and enforce dark theme */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000000;
+  overflow-x: hidden;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+html {
+  background-color: #000000;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.layout-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: calc(100vh - 88px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.board-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 200px;
+  gap: 12px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.sensors-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.sensors-column > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.camera-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.camera-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+}
+
+.camera-frame .aspect-video {
+  max-height: 320px;
+  width: 100%;
+}
+
+.logo-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: start;
+  height: 100%;
+}
+
+.logo-placeholder {
+  border: 2px solid transparent;
+  border-radius: 16px;
+  padding: 12px;
+  background: #0d0d0d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.logo-image {
+  width: 100%;
+  max-width: 160px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  object-fit: cover;
+  background: #0d0d0d;
+}
+
+.logo-text {
+  width: 100%;
+}
+
+.vecna-row {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+/* Tablet and smaller screens */
+@media (max-width: 1024px) {
+  .layout-shell {
+    min-height: auto;
+    max-height: none;
   }
-  to {
-    transform: rotate(360deg);
+
+  .board-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .sensors-column {
+    flex-direction: row;
+    height: auto;
+    gap: 8px;
+  }
+
+  .sensors-column > * {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .camera-column {
+    order: -1;
+  }
+
+  .logo-column {
+    flex-direction: row;
+    height: auto;
+  }
+
+  .logo-placeholder {
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .logo-image {
+    max-width: 100px;
+  }
+
+  .vecna-row {
+    margin-top: 0;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+/* Mobile screens */
+@media (max-width: 640px) {
+  .layout-shell {
+    gap: 10px;
+    padding: 0 !important;
   }
-}
 
-.card {
-  padding: 2em;
-}
+  .board-grid {
+    gap: 10px;
+  }
 
-.read-the-docs {
-  color: #888;
+  .sensors-column {
+    flex-direction: column;
+  }
+
+  .sensors-column > * {
+    min-height: 120px;
+  }
+
+  .camera-frame {
+    gap: 8px;
+  }
+
+  .logo-placeholder {
+    flex-direction: column;
+    padding: 8px;
+  }
+
+  .logo-image {
+    max-width: 80px;
+  }
+
+  .logo-text {
+    text-align: center;
+  }
 }
