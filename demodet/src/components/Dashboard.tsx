@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AlertTriangle, Eye, MessageSquare, Wifi, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertTriangle, Eye, Wifi, Users } from 'lucide-react';
 import type { ThreatLevel } from '../types/index';
 import WebcamCapture from './WebcamCapture';
 import VecnaMeter from './VecnaMeter';
@@ -8,12 +8,54 @@ import TemperatureSensor from './TemperatureSensor';
 import SoundTracker from './SoundTracker';
 import AirQualitySensor from './AirQualitySensor';
 import MessagingDashboard from './MessagingDashboard';
-import { SensorProvider } from '../context/SensorContext';
+import { SensorProvider, useSensorContext } from '../context/SensorContext';
+import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../hooks/useSocket';
+import { alertAPI } from '../services/api';
 
-export default function Dashboard() {
+function DashboardContent() {
   const [threatLevel, setThreatLevel] = useState<ThreatLevel>('safe');
   const [showAI, setShowAI] = useState(false);
   const [showMessaging, setShowMessaging] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const { socket, connected } = useSocket();
+  const { sensorData } = useSensorContext();
+
+  // Calculate threat level based on sensor data
+  useEffect(() => {
+    const { temperature, soundLevel, aqi } = sensorData;
+
+    if (temperature > 30 || soundLevel > 80 || aqi > 200) {
+      setThreatLevel('critical');
+    } else if (temperature > 25 || soundLevel > 60 || aqi > 150) {
+      setThreatLevel('danger');
+    } else if (temperature > 22 || soundLevel > 40 || aqi > 100) {
+      setThreatLevel('warning');
+    } else {
+      setThreatLevel('safe');
+    }
+  }, [sensorData]);
+
+  // Send alert to backend when threat level changes
+  useEffect(() => {
+    if (!user) return;
+
+    const sendAlert = async () => {
+      try {
+        await alertAPI.createAlert({
+          threatLevel,
+          message: `Threat level changed to ${threatLevel}`,
+          sensorData,
+        });
+      } catch (error) {
+        console.error('Failed to send alert:', error);
+      }
+    };
+
+    if (threatLevel !== 'safe') {
+      sendAlert();
+    }
+  }, [threatLevel, user]);
 
   const getThreatColor = () => {
     switch (threatLevel) {
@@ -45,14 +87,15 @@ export default function Dashboard() {
     }
   };
 
-  return (
-    <SensorProvider>
-      <div className="min-h-screen bg-black text-white">
-        {threatLevel === 'critical' && (
-          <div className="fixed inset-0 bg-red-600 opacity-20 animate-pulse pointer-events-none z-50" />
-        )}
+  if (!user && !authLoading) return null;
 
-        <header className="border-b border-red-800 bg-black/50 backdrop-blur sticky top-0 z-40">
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {threatLevel === 'critical' && (
+        <div className="fixed inset-0 bg-red-600 opacity-20 animate-pulse pointer-events-none z-50" />
+      )}
+
+      <header className="border-b border-red-800 bg-black/50 backdrop-blur sticky top-0 z-40">
         <div className="px-3 md:px-4 py-3 md:py-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2 md:gap-3">
@@ -67,8 +110,8 @@ export default function Dashboard() {
 
             <div className="flex items-center gap-2 md:gap-6">
               <div className="flex items-center gap-1 md:gap-2">
-                <Wifi className="w-4 h-4 md:w-5 md:h-5 text-green-500 animate-pulse" />
-                <span className="text-xs md:text-sm hidden sm:inline">ONLINE</span>
+                <Wifi className={`w-4 h-4 md:w-5 md:h-5 ${connected ? 'text-green-500' : 'text-gray-500'} animate-pulse`} />
+                <span className="text-xs md:text-sm hidden sm:inline">{connected ? 'ONLINE' : 'OFFLINE'}</span>
               </div>
 
               <button
@@ -144,7 +187,14 @@ export default function Dashboard() {
           <MessagingDashboard onClose={() => setShowMessaging(false)} />
         )}
       </main>
-      </div>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <SensorProvider>
+      <DashboardContent />
     </SensorProvider>
   );
 }

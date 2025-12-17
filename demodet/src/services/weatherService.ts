@@ -28,6 +28,9 @@ interface AirPollutionResponse {
 const API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 const BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
+// Cache the location request so the browser prompt is shown only once
+let cachedLocationPromise: Promise<GeolocationPosition> | null = null;
+
 export async function getCurrentWeatherData(lat?: number, lon?: number): Promise<WeatherData> {
   try {
     // Check if API key is loaded
@@ -36,7 +39,7 @@ export async function getCurrentWeatherData(lat?: number, lon?: number): Promise
       throw new Error('API key not configured');
     }
 
-    // If no coordinates provided, get user's location
+    // If no coordinates provided, get user's location (single cached prompt)
     if (!lat || !lon) {
       const position = await getUserLocation();
       lat = position.coords.latitude;
@@ -98,14 +101,26 @@ export async function getCurrentWeatherData(lat?: number, lon?: number): Promise
 }
 
 function getUserLocation(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
+  if (cachedLocationPromise) return cachedLocationPromise;
+
+  cachedLocationPromise = new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation is not supported'));
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(resolve, reject);
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 5 * 60 * 1000,
+    });
+  }).catch((err) => {
+    // Reset cache so user can retry later if they change permissions
+    cachedLocationPromise = null;
+    throw err;
   });
+
+  return cachedLocationPromise;
 }
 
 // Convert OpenWeather AQI (1-5 scale) to US AQI (0-500 scale)

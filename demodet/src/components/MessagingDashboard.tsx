@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { X, Send, Circle, MessageSquare, Radio } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Send, Circle, MessageSquare, Radio, Loader2 } from 'lucide-react';
+import { userAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface Member {
-  id: number;
-  name: string;
-  role: string;
+  uid: string;
+  displayName: string;
+  email: string | null;
+  photoURL: string | null;
   status: 'online' | 'offline' | 'away';
   avatar: string;
   lastMessage?: string;
@@ -13,7 +16,7 @@ interface Member {
 
 interface Message {
   id: number;
-  senderId: number;
+  senderId: string;
   text: string;
   timestamp: string;
 }
@@ -25,77 +28,64 @@ interface MessagingDashboardProps {
 export default function MessagingDashboard({ onClose }: MessagingDashboardProps) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [messageInput, setMessageInput] = useState('');
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user: currentUser } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      senderId: 1,
-      text: "Anyone seen any demo-creatures lately?",
-      timestamp: "10:23 AM"
-    },
-    {
-      id: 2,
-      senderId: 2,
-      text: "Negative. Sensors show all clear in my sector.",
-      timestamp: "10:24 AM"
+      senderId: '1',
+      text: "Welcome to the party communications system!",
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
 
-  const members: Member[] = [
-    {
-      id: 1,
-      name: "Mike Wheeler",
-      role: "Party Leader",
-      status: 'online',
-      avatar: "MW",
-      lastMessage: "Anyone seen any demo-creatures?",
-      unreadCount: 2
-    },
-    {
-      id: 2,
-      name: "Eleven",
-      role: "The Psychic",
-      status: 'online',
-      avatar: "11",
-      lastMessage: "Friends don't lie.",
-      unreadCount: 0
-    },
-    {
-      id: 3,
-      name: "Dustin Henderson",
-      role: "Tech Expert",
-      status: 'away',
-      avatar: "DH",
-      lastMessage: "Setting up the cerebro...",
-      unreadCount: 1
-    },
-    {
-      id: 4,
-      name: "Lucas Sinclair",
-      role: "The Ranger",
-      status: 'online',
-      avatar: "LS",
-      lastMessage: "All clear on the perimeter.",
-      unreadCount: 0
-    },
-    {
-      id: 5,
-      name: "Will Byers",
-      role: "The Wise",
-      status: 'offline',
-      avatar: "WB",
-      lastMessage: "Castle Byers signing off.",
-      unreadCount: 0
-    },
-    {
-      id: 6,
-      name: "Max Mayfield",
-      role: "The Zoomer",
-      status: 'online',
-      avatar: "MM",
-      lastMessage: "On my way with the skateboard.",
-      unreadCount: 0
+  useEffect(() => {
+    const fetchFriends = async () => {
+      if (!currentUser) return;
+      try {
+        setLoading(true);
+        const [meRes, allRes] = await Promise.all([userAPI.getMe(), userAPI.getAll()]);
+        const me = meRes.data || {};
+        const allUsers = allRes.data || [];
+        const friendUids: string[] = me.friends || [];
+
+        const source = friendUids.length
+          ? allUsers.filter((u: any) => friendUids.includes(u.uid))
+          : allUsers.filter((u: any) => u.uid !== currentUser.uid);
+
+        const formatted: Member[] = source.map((u: any) => ({
+          uid: u.uid,
+          displayName: u.displayName || u.email || `User_${u.uid?.slice(0, 8)}`,
+          email: u.email || null,
+          photoURL: u.photoURL || null,
+          status: 'online',
+          avatar: getAvatarInitials(u.displayName || u.email || u.uid),
+          lastMessage: u.lastMessage || 'Ready to communicate',
+          unreadCount: u.unreadCount || 0,
+        }));
+
+        setMembers(formatted);
+        setSelectedMember((prev) => (prev ? formatted.find((m) => m.uid === prev.uid) || null : null));
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFriends();
+  }, [currentUser]);
+
+  // Helper function to get avatar initials
+  const getAvatarInitials = (name: string): string => {
+    if (!name) return '?';
+    const parts = name.split(/[\s_]+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
     }
-  ];
+    return name.slice(0, 2).toUpperCase();
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -111,10 +101,10 @@ export default function MessagingDashboard({ onClose }: MessagingDashboardProps)
   };
 
   const handleSendMessage = () => {
-    if (messageInput.trim() && selectedMember) {
+    if (messageInput.trim() && selectedMember && currentUser) {
       const newMessage: Message = {
         id: messages.length + 1,
-        senderId: 0, // Current user
+        senderId: currentUser.uid,
         text: messageInput,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       };
@@ -159,37 +149,47 @@ export default function MessagingDashboard({ onClose }: MessagingDashboardProps)
             </div>
 
             <div className="p-2 space-y-1">
-              {members.map((member) => (
-                <button
-                  key={member.id}
-                  onClick={() => setSelectedMember(member)}
-                  className={`w-full p-3 rounded-lg transition-all duration-200 flex items-center gap-3 ${
-                    selectedMember?.id === member.id
-                      ? 'bg-red-900/40 border-2 border-red-600'
-                      : 'bg-gray-900/30 border-2 border-transparent hover:bg-red-900/20 hover:border-red-800/50'
-                  }`}
-                >
-                  <div className="relative">
-                    <div className="w-12 h-12 bg-gradient-to-br from-red-900 to-red-700 rounded-full flex items-center justify-center font-bold text-white border-2 border-red-600">
-                      {member.avatar}
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-red-500 animate-spin" />
+                </div>
+              ) : members.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No other users online yet</p>
+                </div>
+              ) : (
+                members.map((member) => (
+                  <button
+                    key={member.uid}
+                    onClick={() => setSelectedMember(member)}
+                    className={`w-full p-3 rounded-lg transition-all duration-200 flex items-center gap-3 ${
+                      selectedMember?.uid === member.uid
+                        ? 'bg-red-900/40 border-2 border-red-600'
+                        : 'bg-gray-900/30 border-2 border-transparent hover:bg-red-900/20 hover:border-red-800/50'
+                    }`}
+                  >
+                    <div className="relative">
+                      <div className="w-12 h-12 bg-gradient-to-br from-red-900 to-red-700 rounded-full flex items-center justify-center font-bold text-white border-2 border-red-600">
+                        {member.avatar}
+                      </div>
+                      <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 ${getStatusColor(member.status)} rounded-full border-2 border-gray-900`} />
                     </div>
-                    <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 ${getStatusColor(member.status)} rounded-full border-2 border-gray-900`} />
-                  </div>
 
-                  <div className="flex-1 text-left">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-white text-sm">{member.name}</h3>
-                      {member.unreadCount !== undefined && member.unreadCount > 0 && (
-                        <span className="bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                          {member.unreadCount}
-                        </span>
-                      )}
+                    <div className="flex-1 text-left">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-white text-sm">{member.displayName}</h3>
+                        {member.unreadCount !== undefined && member.unreadCount > 0 && (
+                          <span className="bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                            {member.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-red-400 font-mono">{member.email || 'Anonymous User'}</p>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{member.lastMessage}</p>
                     </div>
-                    <p className="text-xs text-red-400 font-mono">{member.role}</p>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">{member.lastMessage}</p>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))
+              )}
             </div>
           </div>
 
@@ -207,7 +207,7 @@ export default function MessagingDashboard({ onClose }: MessagingDashboardProps)
                       <div className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(selectedMember.status)} rounded-full border-2 border-gray-900`} />
                     </div>
                     <div>
-                      <h3 className="font-bold text-white">{selectedMember.name}</h3>
+                      <h3 className="font-bold text-white">{selectedMember.displayName}</h3>
                       <div className="flex items-center gap-1.5 text-xs">
                         <Circle className={`w-2 h-2 ${getStatusColor(selectedMember.status).replace('bg-', 'fill-')}`} />
                         <span className="text-gray-400 capitalize">{selectedMember.status}</span>
@@ -219,7 +219,7 @@ export default function MessagingDashboard({ onClose }: MessagingDashboardProps)
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
                   {messages.map((message) => {
-                    const isCurrentUser = message.senderId === 0;
+                    const isCurrentUser = message.senderId === currentUser?.uid;
                     return (
                       <div
                         key={message.id}
