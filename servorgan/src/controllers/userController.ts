@@ -1,5 +1,5 @@
-import { db } from "../config/firebaseAdmin";
-import type { UserProfile } from "../types/user";
+import { db } from "../config/firebaseAdmin.js";
+import type { UserProfile } from "../types/user.js";
 
 const usersCol = db.collection("users");
 

@@ -1,6 +1,6 @@
 // src/middleware/verifyFirebaseToken.ts
 import type { Request, Response, NextFunction } from "express";
-import { auth } from "../config/firebaseAdmin";
+import { auth } from "../config/firebaseAdmin.js";
 
 export async function verifyFirebaseToken(req: Request, res: Response, next: NextFunction) {
   const header = (req.headers.authorization ?? "") as string;

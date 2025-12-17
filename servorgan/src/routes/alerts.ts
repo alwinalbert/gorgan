@@ -1,7 +1,7 @@
 // src/routes/alerts.ts
 import { Router } from "express";
-import { db } from "../config/firebaseAdmin";
-import { verifyFirebaseToken } from "../middleware/verifyFirebaseToken";
+import { db } from "../config/firebaseAdmin.js";
+import { verifyFirebaseToken } from "../middleware/verifyFirebaseToken.js";
 
 const router = Router();
 

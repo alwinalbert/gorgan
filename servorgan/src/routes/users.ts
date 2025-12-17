@@ -1,13 +1,28 @@
 import { Router } from "express";
-import { verifyFirebaseToken } from "../middleware/verifyFirebaseToken";
-import { db, admin } from "../config/firebaseAdmin";
+import { verifyFirebaseToken } from "../middleware/verifyFirebaseToken.js";
+import { db, admin } from "../config/firebaseAdmin.js";
 import {
   createUserIfNotExists,
   getUser,
   updateUser,
-} from "../controllers/userController";
+} from "../controllers/userController.js";
 
 const router = Router();
+
+/**
+ * Get all users (for messaging/friends list)
+ */
+router.get("/", verifyFirebaseToken, async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    const snap = await db.collection("users").limit(limit).get();
+    const users = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    res.json(users);
+  } catch (error) {
+    console.error('Failed to fetch users:', error);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
 
 /**
  * Get my profile
@@ -26,9 +41,9 @@ router.post("/init", verifyFirebaseToken, async (req, res) => {
 
   await createUserIfNotExists({
     uid: decoded.uid,
-    email: decoded.email,
-    displayName: decoded.name,
-    photoURL: decoded.picture,
+    email: decoded.email || null,
+    displayName: decoded.name || decoded.email || `User_${decoded.uid.slice(0, 8)}`,
+    photoURL: decoded.picture || null,
     friends: [],
     createdAt: Date.now(),
   });

@@ -2,12 +2,12 @@ import "dotenv/config";
 import express from "express";
 import type { Request, Response } from "express";
 import cors from "cors";
-import { auth } from "./config/firebaseAdmin";
+import { auth } from "./config/firebaseAdmin.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
-import userRoutes from "./routes/users";
-import alertRoutes from "./routes/alerts";
+import userRoutes from "./routes/users.js";
+import alertRoutes from "./routes/alerts.js";
 
 const app = express();
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "*").split(",");
