@@ -7,11 +7,13 @@ import AIAssistant from './AIAssistant';
 import TemperatureSensor from './TemperatureSensor';
 import SoundTracker from './SoundTracker';
 import AirQualitySensor from './AirQualitySensor';
+import MessagingDashboard from './MessagingDashboard';
 import { SensorProvider } from '../context/SensorContext';
 
 export default function Dashboard() {
   const [threatLevel, setThreatLevel] = useState<ThreatLevel>('safe');
   const [showAI, setShowAI] = useState(false);
+  const [showMessaging, setShowMessaging] = useState(false);
 
   const getThreatColor = () => {
     switch (threatLevel) {
@@ -69,10 +71,13 @@ export default function Dashboard() {
                 <span className="text-xs md:text-sm hidden sm:inline">ONLINE</span>
               </div>
 
-              <div className="hidden md:flex items-center gap-2">
+              <button
+                onClick={() => setShowMessaging(true)}
+                className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-900/30 hover:bg-blue-900/50 border border-blue-700/50 hover:border-blue-600 transition-all duration-200"
+              >
                 <Users className="w-5 h-5 text-blue-400" />
-                <span className="text-sm">4 Members</span>
-              </div>
+                <span className="text-sm">6 Members</span>
+              </button>
 
               <div className={`px-2 md:px-4 py-1 md:py-2 rounded-lg bg-gradient-to-r ${getThreatColor()} border-2 ${getThreatBorderColor()}`}>
                 <div className="flex items-center gap-1 md:gap-2">
@@ -133,6 +138,10 @@ export default function Dashboard() {
               <AIAssistant onClose={() => setShowAI(false)} />
             </div>
           </div>
+        )}
+
+        {showMessaging && (
+          <MessagingDashboard onClose={() => setShowMessaging(false)} />
         )}
       </main>
       </div>
