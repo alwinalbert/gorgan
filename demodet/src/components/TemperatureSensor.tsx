@@ -4,16 +4,14 @@ import { getCurrentWeatherData } from '../services/weatherService';
 import { useSensorContext } from '../context/SensorContext';
 
 export default function TemperatureSensor() {
-  const [temperature, setTemperature] = useState(18.5);
   const [location, setLocation] = useState('Loading...');
-  const { updateTemperature } = useSensorContext();
+  const { sensorData, updateTemperature, liveMode } = useSensorContext();
 
   // Fetch real weather data
   useEffect(() => {
     const fetchWeatherData = async () => {
       try {
         const data = await getCurrentWeatherData();
-        setTemperature(data.temperature);
         setLocation(data.location);
         updateTemperature(data.temperature); // Update context
       } catch (error) {
@@ -21,15 +19,16 @@ export default function TemperatureSensor() {
       }
     };
 
+    if (!liveMode) return;
+
     fetchWeatherData();
-    // Refresh every 10 minutes
     const interval = setInterval(fetchWeatherData, 600000);
     return () => clearInterval(interval);
-  }, [updateTemperature]);
+  }, [updateTemperature, liveMode]);
 
   const getTemperatureStatus = () => {
-    if (temperature < 0) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };
-    if (temperature < 15) return { label: 'WARNING', color: 'text-yellow-400', barColor: 'bg-yellow-500' };
+    if (sensorData.temperature < 0) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };
+    if (sensorData.temperature < 15) return { label: 'WARNING', color: 'text-yellow-400', barColor: 'bg-yellow-500' };
     return { label: 'NORMAL', color: 'text-green-400', barColor: 'bg-green-500' };
   };
 
@@ -51,7 +50,7 @@ export default function TemperatureSensor() {
 
       <div className="text-center">
         <div className="text-2xl md:text-3xl font-bold text-white">
-          {temperature.toFixed(1)}°C
+          {sensorData.temperature.toFixed(1)}°C
         </div>
         <div className="text-[10px] md:text-xs text-gray-500 mt-1">{location}</div>
       </div>
@@ -61,7 +60,7 @@ export default function TemperatureSensor() {
         <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
           <div
             className={`h-full ${status.barColor} transition-all duration-500`}
-            style={{ width: `${Math.min(Math.max(((temperature + 10) / 45) * 100, 0), 100)}%` }}
+            style={{ width: `${Math.min(Math.max(((sensorData.temperature + 10) / 45) * 100, 0), 100)}%` }}
           />
         </div>
       </div>

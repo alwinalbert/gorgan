@@ -4,10 +4,9 @@ import { getSoundLevel, initializeMicrophone, stopMicrophone, isMicrophoneActive
 import { useSensorContext } from '../context/SensorContext';
 
 export default function SoundTracker() {
-  const [soundLevel, setSoundLevel] = useState(0);
   const [micActive, setMicActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { updateSoundLevel } = useSensorContext();
+  const { sensorData, updateSoundLevel, liveMode } = useSensorContext();
 
   const startMicrophone = async () => {
     try {
@@ -24,23 +23,22 @@ export default function SoundTracker() {
   const stopMic = () => {
     stopMicrophone();
     setMicActive(false);
-    setSoundLevel(0);
+    updateSoundLevel(0);
   };
 
   // Update sound level when microphone is active
   useEffect(() => {
-    if (!micActive) return;
+    if (!micActive || !liveMode) return;
 
     const interval = setInterval(() => {
       if (isMicrophoneActive()) {
         const level = getSoundLevel();
-        setSoundLevel(level);
-        updateSoundLevel(level); // Update context
+        updateSoundLevel(level); // Update context and UI
       }
     }, 100); // Update every 100ms for smooth real-time display
 
     return () => clearInterval(interval);
-  }, [micActive, updateSoundLevel]);
+  }, [micActive, liveMode, updateSoundLevel]);
 
   // Auto-start microphone on mount
   useEffect(() => {
@@ -52,8 +50,8 @@ export default function SoundTracker() {
   }, []);
 
   const getSoundStatus = () => {
-    if (soundLevel > 110) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };
-    if (soundLevel > 95) return { label: 'WARNING', color: 'text-yellow-400', barColor: 'bg-yellow-500' };
+    if (sensorData.soundLevel > 110) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };
+    if (sensorData.soundLevel > 95) return { label: 'WARNING', color: 'text-yellow-400', barColor: 'bg-yellow-500' };
     return { label: 'NORMAL', color: 'text-green-400', barColor: 'bg-green-500' };
   };
 
@@ -88,7 +86,7 @@ export default function SoundTracker() {
 
       <div className="text-center">
         <div className="text-2xl md:text-3xl font-bold text-white">
-          {Math.round(soundLevel)} dB
+          {Math.round(sensorData.soundLevel)} dB
         </div>
         <div className="text-[10px] md:text-xs text-gray-500 mt-1">
           {error ? error : micActive ? 'Real-time' : 'Mic Off'}
@@ -100,7 +98,7 @@ export default function SoundTracker() {
         <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
           <div
             className={`h-full ${status.barColor} transition-all duration-300`}
-            style={{ width: `${Math.min((soundLevel / 130) * 100, 100)}%` }}
+            style={{ width: `${Math.min((sensorData.soundLevel / 130) * 100, 100)}%` }}
           />
         </div>
       </div>

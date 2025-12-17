@@ -1,33 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Wind } from 'lucide-react';
 import { getCurrentWeatherData } from '../services/weatherService';
 import { useSensorContext } from '../context/SensorContext';
 
 export default function AirQualitySensor() {
-  const [aqi, setAqi] = useState(145);
-  const { updateAQI } = useSensorContext();
+  const { sensorData, updateAQI, liveMode } = useSensorContext();
 
   // Fetch real air quality data
   useEffect(() => {
     const fetchAQIData = async () => {
       try {
         const data = await getCurrentWeatherData();
-        setAqi(data.aqi);
         updateAQI(data.aqi); // Update context
       } catch (error) {
         console.error('Error fetching AQI:', error);
       }
     };
 
+    if (!liveMode) return;
+
     fetchAQIData();
-    // Refresh every 10 minutes
     const interval = setInterval(fetchAQIData, 600000);
     return () => clearInterval(interval);
-  }, [updateAQI]);
+  }, [updateAQI, liveMode]);
 
   const getAQIStatus = () => {
-    if (aqi > 400) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };
-    if (aqi > 250) return { label: 'WARNING', color: 'text-yellow-400', barColor: 'bg-yellow-500' };
+    if (sensorData.aqi > 400) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };
+    if (sensorData.aqi > 250) return { label: 'WARNING', color: 'text-yellow-400', barColor: 'bg-yellow-500' };
     return { label: 'NORMAL', color: 'text-green-400', barColor: 'bg-green-500' };
   };
 
@@ -49,7 +48,7 @@ export default function AirQualitySensor() {
 
       <div className="text-center">
         <div className="text-2xl md:text-3xl font-bold text-white">
-          {Math.round(aqi)}
+          {Math.round(sensorData.aqi)}
         </div>
         <div className="text-[10px] md:text-xs text-gray-500 mt-1">Safe: ≤250 AQI</div>
       </div>
@@ -59,7 +58,7 @@ export default function AirQualitySensor() {
         <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
           <div
             className={`h-full ${status.barColor} transition-all duration-500`}
-            style={{ width: `${Math.min((aqi / 500) * 100, 100)}%` }}
+            style={{ width: `${Math.min((sensorData.aqi / 500) * 100, 100)}%` }}
           />
         </div>
       </div>

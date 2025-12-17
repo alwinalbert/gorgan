@@ -9,6 +9,8 @@ interface SensorData {
 
 interface SensorContextType {
   sensorData: SensorData;
+  liveMode: boolean;
+  setLiveMode: (on: boolean) => void;
   updateTemperature: (temp: number) => void;
   updateSoundLevel: (level: number) => void;
   updateAQI: (aqi: number) => void;
@@ -22,6 +24,7 @@ export function SensorProvider({ children }: { children: ReactNode }) {
     soundLevel: 0,
     aqi: 145
   });
+  const [liveMode, setLiveMode] = useState(true);
 
   const updateTemperature = useCallback((temp: number) => {
     setSensorData(prev => ({ ...prev, temperature: temp }));
@@ -39,6 +42,8 @@ export function SensorProvider({ children }: { children: ReactNode }) {
     <SensorContext.Provider
       value={{
         sensorData,
+        liveMode,
+        setLiveMode,
         updateTemperature,
         updateSoundLevel,
         updateAQI

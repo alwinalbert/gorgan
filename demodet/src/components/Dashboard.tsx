@@ -8,18 +8,22 @@ import TemperatureSensor from './TemperatureSensor';
 import SoundTracker from './SoundTracker';
 import AirQualitySensor from './AirQualitySensor';
 import MessagingDashboard from './MessagingDashboard';
+import ManualOverrideModal from './ManualOverrideModal';
 import { SensorProvider, useSensorContext } from '../context/SensorContext';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../hooks/useSocket';
 import { alertAPI } from '../services/api';
+import { userAPI } from '../services/api';
 
 function DashboardContent() {
   const [threatLevel, setThreatLevel] = useState<ThreatLevel>('safe');
   const [showAI, setShowAI] = useState(false);
   const [showMessaging, setShowMessaging] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [membersCount, setMembersCount] = useState<number | null>(null);
   const { user, loading: authLoading } = useAuth();
   const { socket, connected } = useSocket();
-  const { sensorData } = useSensorContext();
+  const { sensorData, setLiveMode, liveMode } = useSensorContext();
 
   // Calculate threat level based on sensor data
   useEffect(() => {
@@ -35,6 +39,23 @@ function DashboardContent() {
       setThreatLevel('safe');
     }
   }, [sensorData]);
+
+  // Fetch members count from backend
+  useEffect(() => {
+    const loadMembersCount = async () => {
+      if (!user) return;
+      try {
+        const res = await userAPI.getAll();
+        const list = res.data || [];
+        setMembersCount(Array.isArray(list) ? list.length : null);
+      } catch (error) {
+        console.error('Failed to fetch members count:', error);
+        setMembersCount(null);
+      }
+    };
+
+    loadMembersCount();
+  }, [user]);
 
   // Send alert to backend when threat level changes
   useEffect(() => {
@@ -114,12 +135,35 @@ function DashboardContent() {
                 <span className="text-xs md:text-sm hidden sm:inline">{connected ? 'ONLINE' : 'OFFLINE'}</span>
               </div>
 
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setLiveMode(false);
+                    setShowManual(true);
+                  }}
+                  className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-900/30 hover:bg-amber-900/50 border border-amber-700/50 hover:border-amber-600 transition-all duration-200"
+                >
+                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  <span className="text-sm">Manual Trigger</span>
+                </button>
+
+                {!liveMode && (
+                  <button
+                    onClick={() => setLiveMode(true)}
+                    className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-green-900/30 hover:bg-green-900/50 border border-green-700/50 hover:border-green-600 transition-all duration-200"
+                  >
+                    <Wifi className="w-5 h-5 text-green-400" />
+                    <span className="text-sm">Resume Live</span>
+                  </button>
+                )}
+              </div>
+
               <button
                 onClick={() => setShowMessaging(true)}
                 className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-900/30 hover:bg-blue-900/50 border border-blue-700/50 hover:border-blue-600 transition-all duration-200"
               >
                 <Users className="w-5 h-5 text-blue-400" />
-                <span className="text-sm">6 Members</span>
+                <span className="text-sm">{membersCount !== null ? `${membersCount} Member${membersCount === 1 ? '' : 's'}` : 'Members'}</span>
               </button>
 
               <div className={`px-2 md:px-4 py-1 md:py-2 rounded-lg bg-gradient-to-r ${getThreatColor()} border-2 ${getThreatBorderColor()}`}>
@@ -185,6 +229,14 @@ function DashboardContent() {
 
         {showMessaging && (
           <MessagingDashboard onClose={() => setShowMessaging(false)} />
+        )}
+
+        {showManual && (
+          <ManualOverrideModal
+            onClose={() => {
+              setShowManual(false);
+            }}
+          />
         )}
       </main>
     </div>
