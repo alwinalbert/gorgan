@@ -7,6 +7,7 @@ import AIAssistant from './AIAssistant';
 import TemperatureSensor from './TemperatureSensor';
 import SoundTracker from './SoundTracker';
 import AirQualitySensor from './AirQualitySensor';
+import { SensorProvider } from '../context/SensorContext';
 
 export default function Dashboard() {
   const [threatLevel, setThreatLevel] = useState<ThreatLevel>('safe');
@@ -43,12 +44,13 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {threatLevel === 'critical' && (
-        <div className="fixed inset-0 bg-red-600 opacity-20 animate-pulse pointer-events-none z-50" />
-      )}
+    <SensorProvider>
+      <div className="min-h-screen bg-black text-white">
+        {threatLevel === 'critical' && (
+          <div className="fixed inset-0 bg-red-600 opacity-20 animate-pulse pointer-events-none z-50" />
+        )}
 
-      <header className="border-b border-red-800 bg-black/50 backdrop-blur sticky top-0 z-40">
+        <header className="border-b border-red-800 bg-black/50 backdrop-blur sticky top-0 z-40">
         <div className="px-3 md:px-4 py-3 md:py-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2 md:gap-3">
@@ -133,6 +135,7 @@ export default function Dashboard() {
           </div>
         )}
       </main>
-    </div>
+      </div>
+    </SensorProvider>
   );
 }

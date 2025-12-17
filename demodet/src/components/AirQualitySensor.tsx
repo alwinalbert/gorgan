@@ -1,19 +1,29 @@
 import { useState, useEffect } from 'react';
 import { Wind } from 'lucide-react';
+import { getCurrentWeatherData } from '../services/weatherService';
+import { useSensorContext } from '../context/SensorContext';
 
 export default function AirQualitySensor() {
   const [aqi, setAqi] = useState(145);
+  const { updateAQI } = useSensorContext();
 
-  // Simulate AQI changes
+  // Fetch real air quality data
   useEffect(() => {
-    const interval = setInterval(() => {
-      setAqi(prev => {
-        const change = (Math.random() - 0.5) * 20;
-        return Math.max(50, Math.min(500, prev + change));
-      });
-    }, 2500);
+    const fetchAQIData = async () => {
+      try {
+        const data = await getCurrentWeatherData();
+        setAqi(data.aqi);
+        updateAQI(data.aqi); // Update context
+      } catch (error) {
+        console.error('Error fetching AQI:', error);
+      }
+    };
+
+    fetchAQIData();
+    // Refresh every 10 minutes
+    const interval = setInterval(fetchAQIData, 600000);
     return () => clearInterval(interval);
-  }, []);
+  }, [updateAQI]);
 
   const getAQIStatus = () => {
     if (aqi > 400) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };

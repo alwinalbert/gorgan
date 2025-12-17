@@ -1,19 +1,31 @@
 import { useState, useEffect } from 'react';
 import { Thermometer } from 'lucide-react';
+import { getCurrentWeatherData } from '../services/weatherService';
+import { useSensorContext } from '../context/SensorContext';
 
 export default function TemperatureSensor() {
   const [temperature, setTemperature] = useState(18.5);
+  const [location, setLocation] = useState('Loading...');
+  const { updateTemperature } = useSensorContext();
 
-  // Simulate temperature changes
+  // Fetch real weather data
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTemperature(prev => {
-        const change = (Math.random() - 0.5) * 2;
-        return Math.max(-10, Math.min(35, prev + change));
-      });
-    }, 2000);
+    const fetchWeatherData = async () => {
+      try {
+        const data = await getCurrentWeatherData();
+        setTemperature(data.temperature);
+        setLocation(data.location);
+        updateTemperature(data.temperature); // Update context
+      } catch (error) {
+        console.error('Error fetching weather:', error);
+      }
+    };
+
+    fetchWeatherData();
+    // Refresh every 10 minutes
+    const interval = setInterval(fetchWeatherData, 600000);
     return () => clearInterval(interval);
-  }, []);
+  }, [updateTemperature]);
 
   const getTemperatureStatus = () => {
     if (temperature < 0) return { label: 'CRITICAL', color: 'text-red-400', barColor: 'bg-red-500' };
@@ -41,7 +53,7 @@ export default function TemperatureSensor() {
         <div className="text-2xl md:text-3xl font-bold text-white">
           {temperature.toFixed(1)}°C
         </div>
-        <div className="text-[10px] md:text-xs text-gray-500 mt-1">Safe: ≥15°C</div>
+        <div className="text-[10px] md:text-xs text-gray-500 mt-1">{location}</div>
       </div>
 
       {/* Temperature Bar */}
