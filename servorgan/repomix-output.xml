@@ -1,0 +1,290 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+package.json
+src/config/firebaseAdmin.ts
+src/index.ts
+src/middleware/verifyFirebaseToken.ts
+src/routes/alerts.ts
+src/types/user.ts
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".gitignore">
+node_modules
+dist
+.env
+keys
+</file>
+
+<file path="package.json">
+{
+  "name": "servorgan",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.6.0",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.3",
+    "repomix": "^1.10.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  }
+}
+</file>
+
+<file path="src/config/firebaseAdmin.ts">
+import admin from "firebase-admin";
+import path from "path";
+
+const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, "../../keys/upisde-down-survival-firebase-adminsdk-fbsvc-bb1ac83d14.json");
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(require(keyPath)),
+  });
+}
+export const db = admin.firestore();
+export const auth = admin.auth();
+</file>
+
+<file path="src/index.ts">
+import "dotenv/config";
+import express from "express";
+import type { Request, Response } from "express";
+import cors from "cors";
+
+
+const app = express();
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "*").split(",");
+
+// initial plugins
+app.use(cors({ origin: allowedOrigins }));
+app.use(express.json({ limit: "2mb" }));
+
+// app routes
+
+// testing endpoints
+app.get("/health", (_req: Request, res: Response) =>
+  res.json({ ok: true, service: "servorgan" })
+);
+app.get("/api/ping", (_req: Request, res: Response) => res.json({ pong: true }));
+app.post("/api/echo", (req: Request, res: Response) =>
+  res.json({ youSent: req.body ?? null })
+);
+
+const PORT = Number(process.env.PORT ?? 4000);
+app.listen(PORT, () => {
+  console.log(`servorgan baseline API running on port ${PORT}`);
+});
+
+// export app for testing / future modularization
+export default app;
+</file>
+
+<file path="src/middleware/verifyFirebaseToken.ts">
+// src/middleware/verifyFirebaseToken.ts
+import type { Request, Response, NextFunction } from "express";
+import { auth } from "../config/firebaseAdmin";
+
+export async function verifyFirebaseToken(req: Request, res: Response, next: NextFunction) {
+  const header = (req.headers.authorization ?? "") as string;
+  if (!header.startsWith("Bearer ")) return res.status(401).json({ error: "Missing token" });
+  const token = header.slice("Bearer ".length);
+  try {
+    const decoded = await auth.verifyIdToken(token);
+    (req as any).user = decoded;
+    next();
+  } catch (err: any) {
+    console.error("Token verify failed:", err?.message ?? err);
+    res.status(401).json({ error: "Invalid token" });
+  }
+}
+</file>
+
+<file path="src/routes/alerts.ts">
+// src/routes/alerts.ts
+import { Router } from "express";
+import { db } from "../config/firebaseAdmin";
+import { verifyFirebaseToken } from "../middleware/verifyFirebaseToken";
+
+const router = Router();
+
+router.get("/", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 20;
+    const snap = await db.collection("alerts").orderBy("createdAt", "desc").limit(limit).get();
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch alerts" });
+  }
+});
+
+router.post("/", verifyFirebaseToken, async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.threatLevel) return res.status(400).json({ error: "threatLevel required" });
+    const doc = {
+      ...body,
+      userId: (req as any).user?.uid,
+      createdAt: body.createdAt ?? Date.now(),
+    };
+    const ref = await db.collection("alerts").add(doc);
+    const saved = { id: ref.id, ...doc };
+    res.json(saved);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create alert" });
+  }
+});
+
+export default router;
+</file>
+
+<file path="src/types/user.ts">
+export type ThreatLevel = "low" | "medium" | "high" | "critical";
+
+export interface FavoriteSong {
+  title: string;
+  artist?: string;
+  url?: string; // optional link to song file/stream
+}
+
+export interface CurrentThreat {
+  level: ThreatLevel;
+  probabilityPct: number; // 0..100
+  updatedAt: number;
+  source?: string; // "system"|"gemini"|"manual"
+}
+
+export interface UserProfile {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  photoURL?: string;
+  roles?: string[];
+  teamId?: string;
+  devices?: string[];
+  favoriteSong?: FavoriteSong;
+  keywords?: string[]; // lowercase preferred
+  currentThreat?: CurrentThreat;
+  preferences?: Record<string, any>;
+  lastSeenAt?: number;
+  createdAt: number;
+  updatedAt?: number;
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  // Visit https://aka.ms/tsconfig to read more about this file
+  "compilerOptions": {
+    // File Layout
+    "rootDir": "src",
+    "outDir": "dist",
+
+    // Environment Settings
+    // See also https://aka.ms/tsconfig/module
+    "module": "es2020",
+    "target": "esnext",
+    "types": ["node"],
+    // For nodejs:
+    // "lib": ["esnext"],
+    // "types": ["node"],
+    // and npm install -D @types/node
+
+    // Other Outputs
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    // Stricter Typechecking Options
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Style Options
+    // "noImplicitReturns": true,
+    // "noImplicitOverride": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    // "noFallthroughCasesInSwitch": true,
+    // "noPropertyAccessFromIndexSignature": true,
+
+    // Recommended Options
+    "moduleResolution": "node",
+    "strict": true,
+    "jsx": "react-jsx",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+  }
+}
+</file>
+
+</files>
