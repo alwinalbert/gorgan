@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Agent</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 50px; }
+        input { padding: 10px; width: 300px; margin-right: 10px; }
+        button { padding: 10px 20px; cursor: pointer; }
+        #resultContainer { margin-top: 30px; }
+        #generatedImage { max-width: 500px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: none; }
+        #loading { display: none; color: #666; }
+    </style>
+</head>
+<body>
+
+    <h1>AI Image Generator Agent</h1>
+    <p>Enter keywords (e.g., "futuristic city at sunset, cyberpunk style")</p>
+
+    <div>
+        <input type="text" id="keywordInput" placeholder="Enter keywords here...">
+        <button onclick="generateImage()">Generate</button>
+    </div>
+
+    <div id="resultContainer">
+        <p id="loading">Agent is working... please wait...</p>
+        <img id="generatedImage" alt="AI Generated Result">
+        <p id="errorMessage" style="color: red;"></p>
+    </div>
+
+    <script>
+        async function generateImage() {
+            const keywords = document.getElementById('keywordInput').value;
+            const imgElement = document.getElementById('generatedImage');
+            const loadingElement = document.getElementById('loading');
+            const errorElement = document.getElementById('errorMessage');
+
+            if (!keywords) {
+                alert("Please enter some keywords first.");
+                return;
+            }
+
+            // Reset UI states
+            imgElement.style.display = 'none';
+            errorElement.textContent = '';
+            loadingElement.style.display = 'block';
+
+            try {
+                // 1. Send the keywords to your Python backend agent
+                // Make sure this URL matches where your Flask app is running
+                const response = await fetch('http://127.0.0.1:5000/generate-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ keywords: keywords }),
+                });
+
+                const data = await response.json();
+
+                loadingElement.style.display = 'none';
+
+                if (data.status === "success") {
+                    // 2. If successful, set the image source to the base64 data
+                    imgElement.src = data.image_data_url;
+                    imgElement.style.display = 'block';
+                } else {
+                    // Handle backend errors (like safety blocks)
+                    errorElement.textContent = "Error: " + (data.error || "Failed to generate image.");
+                }
+
+            } catch (error) {
+                loadingElement.style.display = 'none';
+                errorElement.textContent = "Network Error: Could not connect to agent backend.";
+                console.error("Error fetching from backend:", error);
+            }
+        }
+    </script>
+</body>
+</html>
