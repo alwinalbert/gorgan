@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AlertTriangle, Eye, Wifi, Users } from 'lucide-react';
 import type { ThreatLevel } from '../types/index';
 import WebcamCapture from './WebcamCapture';
@@ -21,9 +21,61 @@ function DashboardContent() {
   const [showMessaging, setShowMessaging] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [membersCount, setMembersCount] = useState<number | null>(null);
+  const [upsidoAlerted, setUpsidoAlerted] = useState(false);
+  const [upsidoOverlay, setUpsidoOverlay] = useState(false);
+  const [soundReady, setSoundReady] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { user, loading: authLoading } = useAuth();
   const { socket, connected } = useSocket();
   const { sensorData, setLiveMode, liveMode } = useSensorContext();
+
+  // Lazy-load alert audio once
+  useEffect(() => {
+    if (!audioRef.current) {
+      const audio = new Audio('/alert.mp3');
+      audio.loop = false;
+      audio.preload = 'auto';
+      audioRef.current = audio;
+    }
+  }, []);
+
+  // Prime audio after any user gesture to satisfy autoplay policies
+  useEffect(() => {
+    const tryPrime = async () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      try {
+        await audio.play();
+        audio.pause();
+        audio.currentTime = 0;
+        setSoundReady(true);
+        window.removeEventListener('pointerdown', tryPrime);
+        window.removeEventListener('keydown', tryPrime);
+      } catch (err) {
+        console.warn('Audio prime blocked until user interacts again');
+      }
+    };
+
+    window.addEventListener('pointerdown', tryPrime);
+    window.addEventListener('keydown', tryPrime);
+    return () => {
+      window.removeEventListener('pointerdown', tryPrime);
+      window.removeEventListener('keydown', tryPrime);
+    };
+  }, []);
+
+  const primeAudioNow = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    try {
+      await audio.play();
+      audio.pause();
+      audio.currentTime = 0;
+      setSoundReady(true);
+    } catch (err) {
+      console.warn('User gesture required to enable sound:', err);
+    }
+  };
 
   // Calculate threat level based on sensor data
   useEffect(() => {
@@ -39,6 +91,86 @@ function DashboardContent() {
       setThreatLevel('safe');
     }
   }, [sensorData]);
+
+  const calculateUpsidometer = useCallback(() => {
+    let threatScore = 0;
+
+    if (sensorData.temperature < 0) {
+      threatScore += 33;
+    } else if (sensorData.temperature < 15) {
+      threatScore += 20;
+    } else if (sensorData.temperature > 35) {
+      threatScore += 25;
+    } else {
+      threatScore += 5;
+    }
+
+    if (sensorData.soundLevel > 110) {
+      threatScore += 33;
+    } else if (sensorData.soundLevel > 95) {
+      threatScore += 20;
+    } else if (sensorData.soundLevel > 80) {
+      threatScore += 10;
+    }
+
+    if (sensorData.aqi > 400) {
+      threatScore += 34;
+    } else if (sensorData.aqi > 250) {
+      threatScore += 20;
+    } else if (sensorData.aqi > 150) {
+      threatScore += 10;
+    } else {
+      threatScore += 5;
+    }
+
+    return Math.min(100, Math.max(0, threatScore));
+  }, [sensorData]);
+
+  // Trigger audio + broadcast when upsido meter crosses 60%
+  useEffect(() => {
+    const level = calculateUpsidometer();
+
+    const triggerAlert = async () => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play()
+          .then(() => setSoundReady(true))
+          .catch((err) => console.warn('Audio playback blocked:', err));
+      }
+
+      try {
+        await alertAPI.createAlert({
+          threatLevel: 'critical',
+          message: `Upsidometer spiked to ${Math.round(level)}%`,
+          sensorData,
+        });
+      } catch (error) {
+        console.error('Failed to send upsido alert:', error);
+      }
+
+      try {
+        socket?.emit('broadcast-alert', {
+          type: 'upsidometer',
+          level: Math.round(level),
+          message: 'Upsidometer exceeded 60%!',
+          sensorData,
+        });
+      } catch (error) {
+        console.error('Socket broadcast failed:', error);
+      }
+    };
+
+    if (level > 60 && !upsidoAlerted) {
+      setUpsidoAlerted(true);
+      setUpsidoOverlay(true);
+      triggerAlert();
+    }
+
+    if (level <= 50 && upsidoAlerted) {
+      setUpsidoAlerted(false);
+      setUpsidoOverlay(false);
+    }
+  }, [calculateUpsidometer, socket, sensorData, upsidoAlerted]);
 
   // Fetch members count from backend
   useEffect(() => {
@@ -112,6 +244,9 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {upsidoOverlay && (
+        <div className="fixed inset-0 bg-red-600/30 animate-pulse pointer-events-none z-40" />
+      )}
       {threatLevel === 'critical' && (
         <div className="fixed inset-0 bg-red-600 opacity-20 animate-pulse pointer-events-none z-50" />
       )}
@@ -134,6 +269,17 @@ function DashboardContent() {
                 <Wifi className={`w-4 h-4 md:w-5 md:h-5 ${connected ? 'text-green-500' : 'text-gray-500'} animate-pulse`} />
                 <span className="text-xs md:text-sm hidden sm:inline">{connected ? 'ONLINE' : 'OFFLINE'}</span>
               </div>
+
+                {!soundReady && (
+                  <button
+                    onClick={primeAudioNow}
+                    className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-red-900/30 hover:bg-red-900/50 border border-red-700/50 hover:border-red-600 transition-all duration-200"
+                    title="Enable alert sound"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-red-400" />
+                    <span className="text-sm">Enable Sound</span>
+                  </button>
+                )}
 
               <div className="flex items-center gap-2">
                 <button
