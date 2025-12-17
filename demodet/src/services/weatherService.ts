@@ -103,7 +103,7 @@ export async function getCurrentWeatherData(lat?: number, lon?: number): Promise
 function getUserLocation(): Promise<GeolocationPosition> {
   if (cachedLocationPromise) return cachedLocationPromise;
 
-  cachedLocationPromise = new Promise((resolve, reject) => {
+  const locationPromise: Promise<GeolocationPosition> = new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation is not supported'));
       return;
@@ -114,7 +114,9 @@ function getUserLocation(): Promise<GeolocationPosition> {
       timeout: 10000,
       maximumAge: 5 * 60 * 1000,
     });
-  }).catch((err) => {
+  });
+
+  cachedLocationPromise = locationPromise.catch((err) => {
     // Reset cache so user can retry later if they change permissions
     cachedLocationPromise = null;
     throw err;
