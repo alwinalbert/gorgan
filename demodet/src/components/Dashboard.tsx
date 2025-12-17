@@ -77,6 +77,14 @@ function DashboardContent() {
     }
   };
 
+  const stopAlert = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    setUpsidoOverlay(false);
+  };
+
   // Calculate threat level based on sensor data
   useEffect(() => {
     const { temperature, soundLevel, aqi } = sensorData;
@@ -157,6 +165,30 @@ function DashboardContent() {
         });
       } catch (error) {
         console.error('Socket broadcast failed:', error);
+      }
+
+      // Store alert in localStorage
+      try {
+        const alertData = {
+          type: 'upsidometer',
+          level: Math.round(level),
+          message: 'Upsidometer exceeded 60%!',
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        // Broadcast to other tabs
+        localStorage.setItem('alert-broadcast', JSON.stringify(alertData));
+
+        // Save to alert history
+        const history = JSON.parse(localStorage.getItem('alert-history') || '[]');
+        history.push(alertData);
+        // Keep only last 50 alerts
+        if (history.length > 50) {
+          history.shift();
+        }
+        localStorage.setItem('alert-history', JSON.stringify(history));
+      } catch (error) {
+        console.error('Failed to save alert to localStorage:', error);
       }
     };
 
@@ -295,7 +327,10 @@ function DashboardContent() {
 
                 {!liveMode && (
                   <button
-                    onClick={() => setLiveMode(true)}
+                    onClick={() => {
+                      setLiveMode(true);
+                      stopAlert();
+                    }}
                     className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-green-900/30 hover:bg-green-900/50 border border-green-700/50 hover:border-green-600 transition-all duration-200"
                   >
                     <Wifi className="w-5 h-5 text-green-400" />

@@ -34,11 +34,56 @@ export default function MessagingDashboard({ onClose }: MessagingDashboardProps)
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      senderId: '1',
+      senderId: 'system',
       text: "Welcome to the party communications system!",
       timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     }
   ]);
+
+  // Listen for alerts from localStorage
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'alert-broadcast' && e.newValue) {
+        try {
+          const alertData = JSON.parse(e.newValue);
+          const alertMessage: Message = {
+            id: Date.now(),
+            senderId: 'system',
+            text: `🚨 ALERT: ${alertData.message} (Level: ${alertData.level}%)`,
+            timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages((prev) => [...prev, alertMessage]);
+        } catch (err) {
+          console.error('Error parsing alert data:', err);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // Load initial alerts from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedAlerts = localStorage.getItem('alert-history');
+      if (storedAlerts) {
+        const alerts = JSON.parse(storedAlerts);
+        const alertMessages: Message[] = alerts.map((alert: any, index: number) => ({
+          id: Date.now() + index,
+          senderId: 'system',
+          text: `🚨 ALERT: ${alert.message} (Level: ${alert.level}%)`,
+          timestamp: alert.timestamp
+        }));
+        setMessages((prev) => [...prev, ...alertMessages]);
+      }
+    } catch (err) {
+      console.error('Error loading alert history:', err);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchFriends = async () => {
@@ -220,6 +265,21 @@ export default function MessagingDashboard({ onClose }: MessagingDashboardProps)
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
                   {messages.map((message) => {
                     const isCurrentUser = message.senderId === currentUser?.uid;
+                    const isSystem = message.senderId === 'system';
+
+                    if (isSystem) {
+                      return (
+                        <div key={message.id} className="flex justify-center">
+                          <div className="max-w-[90%] px-4 py-2 rounded-lg bg-yellow-900/30 border border-yellow-700/50 text-yellow-200">
+                            <p className="text-sm font-semibold text-center">{message.text}</p>
+                            <span className="text-xs text-yellow-500/70 mt-1 block text-center">
+                              {message.timestamp}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={message.id}
